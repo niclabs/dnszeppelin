@@ -53,6 +53,7 @@ func (ds *dnsStream) processStream() {
 			data = append(data, tmp[0:count]...)
 			for curLength := len(data); curLength >= 2; curLength = len(data) {
 				expected := int(binary.BigEndian.Uint16(data[:2])) + 2
+				fmt.Println(len(data), expected)
 				if curLength >= expected {
 					result := data[2:expected]
 
@@ -87,11 +88,11 @@ func (stream *dnsStreamFactory) New(net, transport gopacket.Flow) tcpassembly.St
 	return &dstream.reader
 }
 
-func tcpAssembler(tcpchannel chan tcpPacket, tcp_return_channel chan tcpData, done chan bool) {
+func tcpAssembler(tcpchannel chan tcpPacket, tcp_return_channel chan tcpData, gcTime time.Duration, done chan bool) {
 	//TCP reassembly init
 	streamFactoryV4 := &dnsStreamFactory{
 		tcp_return_channel: tcp_return_channel,
-		IPVersion:          6,
+		IPVersion:          4,
 	}
 	streamPoolV4 := tcpassembly.NewStreamPool(streamFactoryV4)
 	assemblerV4 := tcpassembly.NewAssembler(streamPoolV4)
@@ -102,7 +103,7 @@ func tcpAssembler(tcpchannel chan tcpPacket, tcp_return_channel chan tcpData, do
 	}
 	streamPoolV6 := tcpassembly.NewStreamPool(streamFactoryV6)
 	assemblerV6 := tcpassembly.NewAssembler(streamPoolV6)
-	ticker := time.Tick(time.Minute)
+	ticker := time.Tick(gcTime)
 	for {
 		select {
 		case packet := <-tcpchannel:
@@ -118,9 +119,11 @@ func tcpAssembler(tcpchannel chan tcpPacket, tcp_return_channel chan tcpData, do
 			}
 		case <-ticker:
 			{
-				// Every minute, flush connections that haven't seen activity in the past 2 minutes.
-				assemblerV4.FlushOlderThan(time.Now().Add(time.Minute * -2))
+				// Flush connections that haven't seen activity in the past GcTime.
+				assemblerV4.FlushOlderThan(time.Now().Add(gcTime * -1))
 			}
+		case <- done:
+			return
 		}
 	}
 }

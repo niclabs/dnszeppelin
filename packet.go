@@ -21,9 +21,9 @@ type PacketEncoder struct {
 	done              chan bool
 }
 
-func ipv4Defragger(ipInput <-chan layers.IPv4, ipOut chan layers.IPv4, done chan bool) {
+func ipv4Defragger(ipInput <-chan layers.IPv4, ipOut chan layers.IPv4, gcTime time.Duration, done chan bool) {
 	ipv4Defragger := ip4defrag.NewIPv4Defragmenter()
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(1 * gcTime)
 	for {
 		select {
 		case ip := <-ipInput:
@@ -32,7 +32,7 @@ func ipv4Defragger(ipInput <-chan layers.IPv4, ipOut chan layers.IPv4, done chan
 				ipOut <- *result
 			}
 		case <-ticker.C:
-			ipv4Defragger.DiscardOlderThan(time.Now().Add(time.Minute * -1))
+			ipv4Defragger.DiscardOlderThan(time.Now().Add(gcTime * -1))
 		case <-done:
 			ticker.Stop()
 			return

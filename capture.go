@@ -18,6 +18,7 @@ type CaptureOptions struct {
 	DevName                       string
 	Filter                        string
 	Port                          uint16
+	GcTime                        time.Duration
 	ResultChannel                 chan<- DnsResult
 	PacketHandlerCount            uint
 	PacketChannelSize             uint
@@ -30,7 +31,8 @@ type CaptureOptions struct {
 }
 
 type DnsCapturer struct {
-	options CaptureOptions
+	options    CaptureOptions
+	processing chan gopacket.Packet
 }
 
 type DnsResult struct {
@@ -74,29 +76,19 @@ func handleInterrupt(done chan bool) {
 }
 
 func NewDnsCapturer(options CaptureOptions) DnsCapturer {
-	return DnsCapturer{options}
-}
-
-func (capturer *DnsCapturer) Start() {
 	var tcp_channel []chan tcpPacket
-	options := capturer.options
-	handle := initialize(options.DevName, options.Filter)
-	defer handle.Close()
 
 	tcp_return_channel := make(chan tcpData, options.TcpResultChannelSize)
 	processing_channel := make(chan gopacket.Packet, options.PacketChannelSize)
 	ip4DefraggerChannel := make(chan layers.IPv4, options.Ip4DefraggerChannelSize)
 	ip4DefraggerReturn := make(chan layers.IPv4, options.Ip4DefraggerReturnChannelSize)
 
-	// Setup SIGINT handling
-	handleInterrupt(options.Done)
-
 	for i := uint(0); i < options.TcpHandlerCount; i++ {
 		tcp_channel = append(tcp_channel, make(chan tcpPacket, options.TcpAssemblyChannelSize))
-		go tcpAssembler(tcp_channel[i], tcp_return_channel, options.Done)
+		go tcpAssembler(tcp_channel[i], tcp_return_channel, options.GcTime, options.Done)
 	}
 
-	go ipv4Defragger(ip4DefraggerChannel, ip4DefraggerReturn, options.Done)
+	go ipv4Defragger(ip4DefraggerChannel, ip4DefraggerReturn, options.GcTime, options.Done)
 
 	encoder := PacketEncoder{
 		options.Port,
@@ -112,11 +104,21 @@ func (capturer *DnsCapturer) Start() {
 	for i := uint(0); i < options.PacketHandlerCount; i++ {
 		go encoder.run()
 	}
+	return DnsCapturer{options, processing_channel}
+}
+
+func (capturer *DnsCapturer) Start() {
+	options := capturer.options
+	handle := initialize(options.DevName, options.Filter)
+	defer handle.Close()
+
+	// Setup SIGINT handling
+	handleInterrupt(options.Done)
+
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	packetSource.DecodeOptions.Lazy = true
 	packetSource.NoCopy = true
 	log.Println("Waiting for packets")
-
 	for {
 		select {
 		case packet := <-packetSource.Packets():
@@ -126,7 +128,7 @@ func (capturer *DnsCapturer) Start() {
 				return
 			}
 			select {
-			case processing_channel <- packet:
+			case capturer.processing <- packet:
 			default:
 			}
 		case <-options.Done:
