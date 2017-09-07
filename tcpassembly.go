@@ -53,7 +53,6 @@ func (ds *dnsStream) processStream() {
 			data = append(data, tmp[0:count]...)
 			for curLength := len(data); curLength >= 2; curLength = len(data) {
 				expected := int(binary.BigEndian.Uint16(data[:2])) + 2
-				fmt.Println(len(data), expected)
 				if curLength >= expected {
 					result := data[2:expected]
 

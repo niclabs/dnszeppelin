@@ -140,6 +140,9 @@ func TestCaptureIP(t *testing.T) {
 	result := <-rChannel
 	assert.Equal(t, net.IPv4(127,0,0,1)[12:], result.SrcIP, "DNS Source IP parsed incorrectly")
 	assert.Equal(t, net.IPv4(8,8,8,8)[12:], result.DstIP, "DNS Dest IP parsed incorrectly")
+	assert.Equal(t, uint8(4), result.IPVersion, "DNS Dest IP parsed incorrectly")
+	assert.Equal(t, "udp", result.Protocol, "DNS Dest IP parsed incorrectly")
+	assert.Equal(t, uint16(len(pack)), result.PacketLength, "DNS Dest IP parsed incorrectly")
 }
 
 func TestCaptureTCP(t *testing.T) {
@@ -162,6 +165,9 @@ func TestCaptureTCP(t *testing.T) {
 	capturer.processing <- packet
 	result := <-rChannel
 	assert.Equal(t, 1, len(result.Dns.Question), "TCP Question decoded incorrectly")
+	assert.Equal(t, uint8(4), result.IPVersion, "DNS Dest IP parsed incorrectly")
+	assert.Equal(t, "tcp", result.Protocol, "DNS Dest IP parsed incorrectly")
+	assert.Equal(t, uint16(len(payload)), result.PacketLength, "DNS Dest IP parsed incorrectly")
 }
 
 func TestCaptureTCPDivided(t *testing.T) {
