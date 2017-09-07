@@ -165,6 +165,7 @@ func TestCaptureTCP(t *testing.T) {
 }
 
 func TestCaptureTCPDivided(t *testing.T) {
+	t.Parallel()
 
 	// Generate the data
 	data := new(mkdns.Msg)
