@@ -112,11 +112,11 @@ func (capturer *DnsCapturer) Start() {
 	for i := uint(0); i < options.PacketHandlerCount; i++ {
 		go encoder.run()
 	}
-
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 	packetSource.DecodeOptions.Lazy = true
 	packetSource.NoCopy = true
 	log.Println("Waiting for packets")
+
 	for {
 		select {
 		case packet := <-packetSource.Packets():

@@ -122,7 +122,7 @@ func (encoder *PacketEncoder) run() {
 						break
 					case layers.LayerTypeIPv6:
 						// Store the packet metadata
-						encoder.processTransport(&foundLayerTypes, &udp, &tcp, ip6.NetworkFlow(), 4, ip6.SrcIP, ip6.DstIP)
+						encoder.processTransport(&foundLayerTypes, &udp, &tcp, ip6.NetworkFlow(), 6, ip6.SrcIP, ip6.DstIP)
 					}
 				}
 				break
