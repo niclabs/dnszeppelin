@@ -88,7 +88,7 @@ func createCapturer() (chan DnsResult, DnsCapturer) {
 		"lo",
 		"(ip or ip6)",
 		53,
-		5*time.Second,
+		2*time.Second,
 		resultChannel,
 		1,
 		10,
@@ -126,7 +126,7 @@ func TestCaptureDNSParse(t *testing.T) {
 	assert.Equal(t, mkdns.TypeA, result.Dns.Question[0].Qtype, "DNS Question decoded incorrectly")
 }
 
-func TestCaptureIP(t *testing.T) {
+func TestCaptureIP4(t *testing.T) {
 	t.Parallel()
 	rChannel, capturer := createCapturer()
 	defer close(capturer.options.Done)
@@ -138,11 +138,136 @@ func TestCaptureIP(t *testing.T) {
 
 	capturer.processing <- generateUDPPacket(pack)
 	result := <-rChannel
+	assert.Equal(t, uint8(4), result.IPVersion, "DNS IP Version parsed incorrectly")
 	assert.Equal(t, net.IPv4(127,0,0,1)[12:], result.SrcIP, "DNS Source IP parsed incorrectly")
 	assert.Equal(t, net.IPv4(8,8,8,8)[12:], result.DstIP, "DNS Dest IP parsed incorrectly")
-	assert.Equal(t, uint8(4), result.IPVersion, "DNS Dest IP parsed incorrectly")
 	assert.Equal(t, "udp", result.Protocol, "DNS Dest IP parsed incorrectly")
 	assert.Equal(t, uint16(len(pack)), result.PacketLength, "DNS Dest IP parsed incorrectly")
+}
+
+func TestCaptureFragmentedIP4(t *testing.T) {
+	t.Parallel()
+	rChannel, capturer := createCapturer()
+	defer close(capturer.options.Done)
+	defer close(rChannel)
+
+	data := new(mkdns.Msg)
+	data.SetQuestion("example.com.", mkdns.TypeA)
+	pack, _ := data.Pack()
+
+	// Generate the udp packet
+	var options gopacket.SerializeOptions
+	options.FixLengths = true
+	buffer := gopacket.NewSerializeBuffer()
+	gopacket.SerializeLayers(buffer, options,
+		&layers.UDP{
+			SrcPort: 53,
+			DstPort: 53,
+		},
+		gopacket.Payload(pack),
+	)
+	udpPacket := buffer.Bytes()
+
+	// Generate the fragmented ip packets
+	a := udpPacket[:16]
+	b := udpPacket[16:]
+	// Send a
+	buffer = gopacket.NewSerializeBuffer()
+	gopacket.SerializeLayers(buffer, options,
+		&layers.Ethernet{
+			SrcMAC: net.HardwareAddr{0xFF, 0xAA, 0xFA, 0xAA, 0xFF, 0xAA},
+			DstMAC: net.HardwareAddr{0xBD, 0xBD, 0xBD, 0xBD, 0xBD, 0xBD},
+			EthernetType: layers.EthernetTypeIPv4,
+		},
+		&layers.IPv4{
+			Version: 4,
+			Protocol: layers.IPProtocolUDP,
+			SrcIP: net.IP{127, 0, 0, 1},
+			DstIP: net.IP{8, 8, 8, 8},
+			Flags: layers.IPv4MoreFragments,
+		},
+		gopacket.Payload(a),
+	)
+	capturer.processing <- gopacket.NewPacket(buffer.Bytes(), layers.LayerTypeEthernet, gopacket.Lazy)
+	// Send b
+	buffer = gopacket.NewSerializeBuffer()
+	gopacket.SerializeLayers(buffer, options,
+		&layers.Ethernet{
+			SrcMAC: net.HardwareAddr{0xFF, 0xAA, 0xFA, 0xAA, 0xFF, 0xAA},
+			DstMAC: net.HardwareAddr{0xBD, 0xBD, 0xBD, 0xBD, 0xBD, 0xBD},
+			EthernetType: layers.EthernetTypeIPv4,
+		},
+		&layers.IPv4{
+			Version: 4,
+			Protocol: layers.IPProtocolUDP,
+			SrcIP: net.IP{127, 0, 0, 1},
+			DstIP: net.IP{8, 8, 8, 8},
+			Flags: 0,
+			FragOffset: 2,
+		},
+		gopacket.Payload(b),
+	)
+	capturer.processing <- gopacket.NewPacket(buffer.Bytes(), layers.LayerTypeEthernet, gopacket.Lazy)
+
+	timer := time.NewTimer(10*time.Second)
+	defer timer.Stop()
+	select {
+		case result := <-rChannel:
+			assert.Equal(t, net.IPv4(127,0,0,1)[12:], result.SrcIP, "DNS Source IP parsed incorrectly")
+			assert.Equal(t, net.IPv4(8,8,8,8)[12:], result.DstIP, "DNS Dest IP parsed incorrectly")
+			assert.Equal(t, uint8(4), result.IPVersion, "DNS Dest IP parsed incorrectly")
+			assert.Equal(t, "udp", result.Protocol, "DNS Dest IP parsed incorrectly")
+			assert.Equal(t, uint16(len(pack)), result.PacketLength, "DNS Dest IP parsed incorrectly")
+		case <-timer.C:
+			t.Error("Capturer packet timeout")
+	}
+}
+
+
+func TestCaptureIP6(t *testing.T) {
+	t.Parallel()
+	rChannel, capturer := createCapturer()
+	defer close(capturer.options.Done)
+	defer close(rChannel)
+
+	data := new(mkdns.Msg)
+	data.SetQuestion("example.com.", mkdns.TypeA)
+	pack, _ := data.Pack()
+
+	// Generate the packet
+	var options gopacket.SerializeOptions
+	options.FixLengths = true
+	buffer := gopacket.NewSerializeBuffer()
+
+	gopacket.SerializeLayers(buffer, options,
+		&layers.Ethernet{
+			SrcMAC: net.HardwareAddr{0xFF, 0xAA, 0xFA, 0xAA, 0xFF, 0xAA},
+			DstMAC: net.HardwareAddr{0xBD, 0xBD, 0xBD, 0xBD, 0xBD, 0xBD},
+			EthernetType: layers.EthernetTypeIPv6,
+		},
+		&layers.IPv6{
+			Version: 6,
+			NextHeader: layers.IPProtocolUDP,
+			SrcIP: net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+			DstIP: net.IP{32, 1, 72, 96, 72, 96, 0, 0, 0, 0, 0, 0, 0, 0, 136, 136},
+		},
+		&layers.UDP{
+			SrcPort: layers.UDPPort(53),
+			DstPort: layers.UDPPort(53),
+		},
+		gopacket.Payload(pack),
+	)
+
+	capturer.processing <- gopacket.NewPacket(buffer.Bytes(), layers.LayerTypeEthernet, gopacket.Lazy)
+	result := <-rChannel
+
+	assert.Equal(t, uint8(6), result.IPVersion, "DNS IP Version parsed incorrectly")
+	assert.Equal(t, net.IP{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, result.SrcIP, "DNS Source IP parsed incorrectly")
+	assert.Equal(t, net.IP{32, 1, 72, 96, 72, 96, 0, 0, 0, 0, 0, 0, 0, 0, 136, 136}, result.DstIP, "DNS Dest IP parsed incorrectly")
+	assert.Equal(t, "udp", result.Protocol, "DNS Dest IP parsed incorrectly")
+	assert.Equal(t, uint16(len(pack)), result.PacketLength, "DNS Dest IP parsed incorrectly")
+	assert.Equal(t, 1, len(result.Dns.Question), "IPv6 dns question have unexpected count")
+	assert.Equal(t, "example.com.", result.Dns.Question[0].Name, "IPv6 dns question parsed incorrectly")
 }
 
 func TestCaptureTCP(t *testing.T) {
@@ -186,7 +311,6 @@ func TestCaptureTCPDivided(t *testing.T) {
 	b := buf[len(buf)/2:]
 	packetA := packTCP(a, 10, true)
 	packetB := packTCP(b, 10+uint32(len(a))+1, false)
-	assert.Equal(t, len(buf), len(a)+len(b), "Err")
 	//return
 
 	// Send the packet
