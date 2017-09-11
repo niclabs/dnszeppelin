@@ -81,7 +81,7 @@ func packTCP(payload []byte, seq uint32, syn bool) gopacket.Packet {
 
 }
 
-func createCapturer() (chan DnsResult, DnsCapturer) {
+func createCapturer(size uint) (chan DnsResult, DnsCapturer) {
 	resultChannel := make(chan DnsResult, 10)
 	done := make(chan bool)
 	capturer := NewDnsCapturer(CaptureOptions{
@@ -91,7 +91,7 @@ func createCapturer() (chan DnsResult, DnsCapturer) {
 		2*time.Second,
 		resultChannel,
 		1,
-		10,
+		size,
 		1,
 		1,
 		10,
@@ -102,17 +102,21 @@ func createCapturer() (chan DnsResult, DnsCapturer) {
 	return resultChannel, capturer
 }
 
+func createDefaultCapturer() (chan DnsResult, DnsCapturer) {
+	return createCapturer(10)
+}
+
 
 /* Tests */
 func TestCreateCapture(t *testing.T) {
-	rChannel, capturer := createCapturer()
+	rChannel, capturer := createDefaultCapturer()
 	close(capturer.options.Done)
 	close(rChannel)
 }
 
 func TestCaptureDNSParse(t *testing.T) {
 	t.Parallel()
-	rChannel, capturer := createCapturer()
+	rChannel, capturer := createDefaultCapturer()
 	defer close(capturer.options.Done)
 
 	data := new(mkdns.Msg)
@@ -128,7 +132,7 @@ func TestCaptureDNSParse(t *testing.T) {
 
 func TestCaptureIP4(t *testing.T) {
 	t.Parallel()
-	rChannel, capturer := createCapturer()
+	rChannel, capturer := createDefaultCapturer()
 	defer close(capturer.options.Done)
 	defer close(rChannel)
 
@@ -147,7 +151,7 @@ func TestCaptureIP4(t *testing.T) {
 
 func TestCaptureFragmentedIP4(t *testing.T) {
 	t.Parallel()
-	rChannel, capturer := createCapturer()
+	rChannel, capturer := createDefaultCapturer()
 	defer close(capturer.options.Done)
 	defer close(rChannel)
 
@@ -226,7 +230,7 @@ func TestCaptureFragmentedIP4(t *testing.T) {
 
 func TestCaptureIP6(t *testing.T) {
 	t.Parallel()
-	rChannel, capturer := createCapturer()
+	rChannel, capturer := createDefaultCapturer()
 	defer close(capturer.options.Done)
 	defer close(rChannel)
 
@@ -284,7 +288,7 @@ func TestCaptureTCP(t *testing.T) {
 	packet := packTCP(buf, 1, true)
 
 	// Send the packet
-	rChannel, capturer := createCapturer()
+	rChannel, capturer := createDefaultCapturer()
 	defer close(capturer.options.Done)
 	defer close(rChannel)
 	capturer.processing <- packet
@@ -314,11 +318,33 @@ func TestCaptureTCPDivided(t *testing.T) {
 	//return
 
 	// Send the packet
-	rChannel, capturer := createCapturer()
+	rChannel, capturer := createDefaultCapturer()
 	defer close(capturer.options.Done)
 	defer close(rChannel)
 	capturer.processing <- packetB
 	capturer.processing <- packetA
 	result := <-rChannel
 	assert.Equal(t, 1, len(result.Dns.Question), "TCP Question decoded incorrectly")
+}
+
+// Benchmark
+func BenchmarkUDPParsing(b *testing.B) {
+	rChannel, capturer := createCapturer(100000)
+	defer close(capturer.options.Done)
+	defer close(rChannel)
+
+	data := new(mkdns.Msg)
+	data.SetQuestion("example.com.", mkdns.TypeA)
+	pack, _ := data.Pack()
+
+	packet := generateUDPPacket(pack)
+	go func() {
+		// Consume all the processed data
+		for {
+			<-rChannel
+		}
+	}()
+	for i := 0; i < b.N; i++ {
+		capturer.processing <- packet
+	}
 }
