@@ -48,7 +48,7 @@ func (ds *dnsStream) processStream() {
 		if err == io.EOF {
 			return
 		} else if err != nil {
-			log.Printf("Error when reading DNS buf", err)
+			log.Println("Error when reading DNS buf", err)
 		} else if count > 0 {
 			data = append(data, tmp[0:count]...)
 			for curLength := len(data); curLength >= 2; curLength = len(data) {
