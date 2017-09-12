@@ -1,7 +1,6 @@
+sudo: required
 language: go
 
-env:
-  - "PATH=/home/travis/gopath/bin:$PATH"
 go:
   - 1.8
   - tip
@@ -11,7 +10,7 @@ before_install:
   - sudo apt-get install -y libpcap0.8 libpcap0.8-dev libnuma-dev
 
 script:
-  - go test -race -coverprofile=coverage.txt -covermode=atomic
+  - sudo -E env "PATH=$PATH" go test -race -coverprofile=coverage.txt -covermode=atomic
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
