@@ -2,7 +2,6 @@ package godnscapture
 
 import (
 	"encoding/binary"
-	"fmt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/tcpassembly"
@@ -10,6 +9,7 @@ import (
 	"io"
 	"net"
 	"time"
+	"log"
 )
 
 type tcpPacket struct {
@@ -48,7 +48,7 @@ func (ds *dnsStream) processStream() {
 		if err == io.EOF {
 			return
 		} else if err != nil {
-			fmt.Errorf("Error when reading DNS buf", err)
+			log.Printf("Error when reading DNS buf", err)
 		} else if count > 0 {
 			data = append(data, tmp[0:count]...)
 			for curLength := len(data); curLength >= 2; curLength = len(data) {

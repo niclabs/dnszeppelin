@@ -1,7 +1,6 @@
 package godnscapture
 
 import (
-	"fmt"
 	"log"
 	"time"
 
@@ -53,8 +52,8 @@ func initialize(devName, filter string) *pcap.Handle {
 	}
 
 	// Set Filter
-	fmt.Fprintf(os.Stderr, "Using Device: %s\n", devName)
-	fmt.Fprintf(os.Stderr, "Filter: %s\n", filter)
+	log.Printf("Using Device: %s\n", devName)
+	log.Printf("Filter: %s\n", filter)
 	err = handle.SetBPFFilter(filter)
 	if err != nil {
 		log.Fatal(err)
@@ -68,7 +67,7 @@ func handleInterrupt(done chan bool) {
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		for range c {
-			fmt.Errorf("SIGINT")
+			log.Printf("SIGINT received")
 			close(done)
 			return
 		}
@@ -123,7 +122,7 @@ func (capturer *DnsCapturer) Start() {
 		select {
 		case packet := <-packetSource.Packets():
 			if packet == nil {
-				fmt.Println("PacketSource returned nil.")
+				log.Println("PacketSource returned nil.")
 				close(options.Done)
 				return
 			}
