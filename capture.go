@@ -18,25 +18,25 @@ type CaptureOptions struct {
 	Filter                        string
 	Port                          uint16
 	GcTime                        time.Duration
-	ResultChannel                 chan<- DnsResult
+	ResultChannel                 chan<- DNSResult
 	PacketHandlerCount            uint
 	PacketChannelSize             uint
-	TcpHandlerCount               uint
-	TcpAssemblyChannelSize        uint
-	TcpResultChannelSize          uint
-	Ip4DefraggerChannelSize       uint
-	Ip4DefraggerReturnChannelSize uint
+	TCPHandlerCount               uint
+	TCPAssemblyChannelSize        uint
+	TCPResultChannelSize          uint
+	IP4DefraggerChannelSize       uint
+	IP4DefraggerReturnChannelSize uint
 	Done                          chan bool
 }
 
-type DnsCapturer struct {
+type DNSCapturer struct {
 	options    CaptureOptions
 	processing chan gopacket.Packet
 }
 
-type DnsResult struct {
+type DNSResult struct {
 	Timestamp    time.Time
-	Dns          mkdns.Msg
+	DNS          mkdns.Msg
 	IPVersion    uint8
 	SrcIP        net.IP
 	DstIP        net.IP
@@ -74,28 +74,28 @@ func handleInterrupt(done chan bool) {
 	}()
 }
 
-func NewDnsCapturer(options CaptureOptions) DnsCapturer {
-	var tcp_channel []chan tcpPacket
+func NewDNSCapturer(options CaptureOptions) DNSCapturer {
+	var tcpChannels []chan tcpPacket
 
-	tcp_return_channel := make(chan tcpData, options.TcpResultChannelSize)
-	processing_channel := make(chan gopacket.Packet, options.PacketChannelSize)
-	ip4DefraggerChannel := make(chan layers.IPv4, options.Ip4DefraggerChannelSize)
-	ip4DefraggerReturn := make(chan layers.IPv4, options.Ip4DefraggerReturnChannelSize)
+	tcpReturnChannel := make(chan tcpData, options.TCPResultChannelSize)
+	processingChannel := make(chan gopacket.Packet, options.PacketChannelSize)
+	ip4DefraggerChannel := make(chan layers.IPv4, options.IP4DefraggerChannelSize)
+	ip4DefraggerReturn := make(chan layers.IPv4, options.IP4DefraggerReturnChannelSize)
 
-	for i := uint(0); i < options.TcpHandlerCount; i++ {
-		tcp_channel = append(tcp_channel, make(chan tcpPacket, options.TcpAssemblyChannelSize))
-		go tcpAssembler(tcp_channel[i], tcp_return_channel, options.GcTime, options.Done)
+	for i := uint(0); i < options.TCPHandlerCount; i++ {
+		tcpChannels = append(tcpChannels, make(chan tcpPacket, options.TCPAssemblyChannelSize))
+		go tcpAssembler(tcpChannels[i], tcpReturnChannel, options.GcTime, options.Done)
 	}
 
 	go ipv4Defragger(ip4DefraggerChannel, ip4DefraggerReturn, options.GcTime, options.Done)
 
-	encoder := PacketEncoder{
+	encoder := packetEncoder{
 		options.Port,
-		processing_channel,
+		processingChannel,
 		ip4DefraggerChannel,
 		ip4DefraggerReturn,
-		tcp_channel,
-		tcp_return_channel,
+		tcpChannels,
+		tcpReturnChannel,
 		options.ResultChannel,
 		options.Done,
 	}
@@ -103,10 +103,10 @@ func NewDnsCapturer(options CaptureOptions) DnsCapturer {
 	for i := uint(0); i < options.PacketHandlerCount; i++ {
 		go encoder.run()
 	}
-	return DnsCapturer{options, processing_channel}
+	return DNSCapturer{options, processingChannel}
 }
 
-func (capturer *DnsCapturer) Start() {
+func (capturer *DNSCapturer) Start() {
 	options := capturer.options
 	handle := initialize(options.DevName, options.Filter)
 	defer handle.Close()

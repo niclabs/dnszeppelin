@@ -10,14 +10,14 @@ import (
 	"net"
 )
 
-type PacketEncoder struct {
+type packetEncoder struct {
 	port              uint16
 	input             <-chan gopacket.Packet
 	ip4Defrgger       chan<- layers.IPv4
 	ip4DefrggerReturn <-chan layers.IPv4
 	tcpAssembly       []chan tcpPacket
 	tcpReturnChannel  <-chan tcpData
-	resultChannel     chan<- DnsResult
+	resultChannel     chan<- DNSResult
 	done              chan bool
 }
 
@@ -40,14 +40,14 @@ func ipv4Defragger(ipInput <-chan layers.IPv4, ipOut chan layers.IPv4, gcTime ti
 	}
 }
 
-func (encoder *PacketEncoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *layers.UDP, tcp *layers.TCP, flow gopacket.Flow, IPVersion uint8, SrcIP, DstIP net.IP) {
+func (encoder *packetEncoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *layers.UDP, tcp *layers.TCP, flow gopacket.Flow, IPVersion uint8, SrcIP, DstIP net.IP) {
 	for _, layerType := range *foundLayerTypes {
 		switch layerType {
 		case layers.LayerTypeUDP:
 			if uint16(udp.DstPort) == encoder.port || uint16(udp.SrcPort) == encoder.port {
 				msg := mkdns.Msg{}
 				if err := msg.Unpack(udp.Payload); err == nil {
-					encoder.resultChannel <- DnsResult{time.Now(), msg, IPVersion, SrcIP, DstIP, "udp", uint16(len(udp.Payload))}
+					encoder.resultChannel <- DNSResult{time.Now(), msg, IPVersion, SrcIP, DstIP, "udp", uint16(len(udp.Payload))}
 				}
 			}
 		case layers.LayerTypeTCP:
@@ -64,7 +64,7 @@ func (encoder *PacketEncoder) processTransport(foundLayerTypes *[]gopacket.Layer
 
 }
 
-func (encoder *PacketEncoder) run() {
+func (encoder *packetEncoder) run() {
 	var ethLayer layers.Ethernet
 	var ip4 layers.IPv4
 	var ip6 layers.IPv6
@@ -92,7 +92,7 @@ func (encoder *PacketEncoder) run() {
 		case data := <-encoder.tcpReturnChannel:
 			msg := mkdns.Msg{}
 			if err := msg.Unpack(data.data); err == nil {
-				encoder.resultChannel <- DnsResult{time.Now(), msg, data.IPVersion, data.SrcIp, data.DstIp, "tcp", uint16(len(data.data))}
+				encoder.resultChannel <- DNSResult{time.Now(), msg, data.IPVersion, data.SrcIP, data.DstIP, "tcp", uint16(len(data.data))}
 			}
 		case ip4 = <-encoder.ip4DefrggerReturn:
 			// Packet was defragged, parse the remaining data

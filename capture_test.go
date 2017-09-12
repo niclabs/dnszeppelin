@@ -1,13 +1,13 @@
 package godnscapture
 
 import (
-	"testing"
 	mkdns "github.com/miekg/dns"
-	"time"
+	"github.com/stretchr/testify/assert"
+	"os"
 	"os/exec"
 	"strconv"
-	"os"
-	"github.com/stretchr/testify/assert"
+	"testing"
+	"time"
 )
 
 // helpers
@@ -29,19 +29,18 @@ func hasRootAccess() bool {
 
 	if i == 0 {
 		return true
-	} else {
-		return false
 	}
+	return false
 }
 
-func createCapturer(size uint) (chan DnsResult, DnsCapturer) {
-	resultChannel := make(chan DnsResult, 10)
+func createCapturer(size uint) (chan DNSResult, DNSCapturer) {
+	resultChannel := make(chan DNSResult, 10)
 	done := make(chan bool)
-	capturer := NewDnsCapturer(CaptureOptions{
+	capturer := NewDNSCapturer(CaptureOptions{
 		"lo",
 		"(ip or ip6)",
 		53,
-		2*time.Second,
+		2 * time.Second,
 		resultChannel,
 		1,
 		size,
@@ -55,7 +54,7 @@ func createCapturer(size uint) (chan DnsResult, DnsCapturer) {
 	return resultChannel, capturer
 }
 
-func createDefaultCapturer() (chan DnsResult, DnsCapturer) {
+func createDefaultCapturer() (chan DNSResult, DNSCapturer) {
 	return createCapturer(10)
 }
 

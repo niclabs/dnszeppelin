@@ -7,9 +7,9 @@ import (
 	"github.com/google/gopacket/tcpassembly"
 	"github.com/google/gopacket/tcpassembly/tcpreader"
 	"io"
+	"log"
 	"net"
 	"time"
-	"log"
 )
 
 type tcpPacket struct {
@@ -22,20 +22,20 @@ type tcpPacket struct {
 type tcpData struct {
 	IPVersion uint8
 	data      []byte
-	SrcIp     net.IP
-	DstIp     net.IP
+	SrcIP     net.IP
+	DstIP     net.IP
 }
 
 type dnsStreamFactory struct {
-	tcp_return_channel chan tcpData
-	IPVersion          uint8
+	tcpReturnChannel chan tcpData
+	IPVersion        uint8
 }
 
 type dnsStream struct {
-	Net                gopacket.Flow
-	reader             tcpreader.ReaderStream
-	tcp_return_channel chan tcpData
-	IPVersion          uint8
+	Net              gopacket.Flow
+	reader           tcpreader.ReaderStream
+	tcpReturnChannel chan tcpData
+	IPVersion        uint8
 }
 
 func (ds *dnsStream) processStream() {
@@ -57,11 +57,11 @@ func (ds *dnsStream) processStream() {
 					result := data[2:expected]
 
 					// Send the data to be processed
-					ds.tcp_return_channel <- tcpData{
+					ds.tcpReturnChannel <- tcpData{
 						IPVersion: ds.IPVersion,
 						data:      result,
-						SrcIp:     net.IP(ds.Net.Src().Raw()),
-						DstIp:     net.IP(ds.Net.Dst().Raw()),
+						SrcIP:     net.IP(ds.Net.Src().Raw()),
+						DstIP:     net.IP(ds.Net.Dst().Raw()),
 					}
 					// Save the remaining data for future querys
 					data = data[expected:]
@@ -75,10 +75,10 @@ func (ds *dnsStream) processStream() {
 
 func (stream *dnsStreamFactory) New(net, transport gopacket.Flow) tcpassembly.Stream {
 	dstream := &dnsStream{
-		Net:                net,
-		reader:             tcpreader.NewReaderStream(),
-		tcp_return_channel: stream.tcp_return_channel,
-		IPVersion:          stream.IPVersion,
+		Net:              net,
+		reader:           tcpreader.NewReaderStream(),
+		tcpReturnChannel: stream.tcpReturnChannel,
+		IPVersion:        stream.IPVersion,
 	}
 
 	// We must read all the data from the reader or we will have the data standing in memory
@@ -87,18 +87,18 @@ func (stream *dnsStreamFactory) New(net, transport gopacket.Flow) tcpassembly.St
 	return &dstream.reader
 }
 
-func tcpAssembler(tcpchannel chan tcpPacket, tcp_return_channel chan tcpData, gcTime time.Duration, done chan bool) {
+func tcpAssembler(tcpchannel chan tcpPacket, tcpReturnChannel chan tcpData, gcTime time.Duration, done chan bool) {
 	//TCP reassembly init
 	streamFactoryV4 := &dnsStreamFactory{
-		tcp_return_channel: tcp_return_channel,
-		IPVersion:          4,
+		tcpReturnChannel: tcpReturnChannel,
+		IPVersion:        4,
 	}
 	streamPoolV4 := tcpassembly.NewStreamPool(streamFactoryV4)
 	assemblerV4 := tcpassembly.NewAssembler(streamPoolV4)
 
 	streamFactoryV6 := &dnsStreamFactory{
-		tcp_return_channel: tcp_return_channel,
-		IPVersion:          6,
+		tcpReturnChannel: tcpReturnChannel,
+		IPVersion:        6,
 	}
 	streamPoolV6 := tcpassembly.NewStreamPool(streamFactoryV6)
 	assemblerV6 := tcpassembly.NewAssembler(streamPoolV6)
@@ -121,7 +121,7 @@ func tcpAssembler(tcpchannel chan tcpPacket, tcp_return_channel chan tcpData, gc
 				// Flush connections that haven't seen activity in the past GcTime.
 				assemblerV4.FlushOlderThan(time.Now().Add(gcTime * -1))
 			}
-		case <- done:
+		case <-done:
 			return
 		}
 	}
