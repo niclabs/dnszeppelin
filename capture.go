@@ -14,19 +14,19 @@ import (
 )
 
 type CaptureOptions struct {
-	DevName                       string
-	Filter                        string
-	Port                          uint16
-	GcTime                        time.Duration
-	ResultChannel                 chan<- DNSResult
-	PacketHandlerCount            uint
-	PacketChannelSize             uint
-	TCPHandlerCount               uint
-	TCPAssemblyChannelSize        uint
-	TCPResultChannelSize          uint
-	IP4DefraggerChannelSize       uint
-	IP4DefraggerReturnChannelSize uint
-	Done                          chan bool
+	DevName                      string
+	Filter                       string
+	Port                         uint16
+	GcTime                       time.Duration
+	ResultChannel                chan<- DNSResult
+	PacketHandlerCount           uint
+	PacketChannelSize            uint
+	TCPHandlerCount              uint
+	TCPAssemblyChannelSize       uint
+	TCPResultChannelSize         uint
+	IPDefraggerChannelSize       uint
+	IPDefraggerReturnChannelSize uint
+	Done                         chan bool
 }
 
 type DNSCapturer struct {
@@ -79,8 +79,10 @@ func NewDNSCapturer(options CaptureOptions) DNSCapturer {
 
 	tcpReturnChannel := make(chan tcpData, options.TCPResultChannelSize)
 	processingChannel := make(chan gopacket.Packet, options.PacketChannelSize)
-	ip4DefraggerChannel := make(chan layers.IPv4, options.IP4DefraggerChannelSize)
-	ip4DefraggerReturn := make(chan layers.IPv4, options.IP4DefraggerReturnChannelSize)
+	ip4DefraggerChannel := make(chan layers.IPv4, options.IPDefraggerChannelSize)
+	ip6DefraggerChannel := make(chan ipv6FragmentInfo, options.IPDefraggerChannelSize)
+	ip4DefraggerReturn := make(chan layers.IPv4, options.IPDefraggerReturnChannelSize)
+	ip6DefraggerReturn := make(chan layers.IPv6, options.IPDefraggerReturnChannelSize)
 
 	for i := uint(0); i < options.TCPHandlerCount; i++ {
 		tcpChannels = append(tcpChannels, make(chan tcpPacket, options.TCPAssemblyChannelSize))
@@ -88,12 +90,15 @@ func NewDNSCapturer(options CaptureOptions) DNSCapturer {
 	}
 
 	go ipv4Defragger(ip4DefraggerChannel, ip4DefraggerReturn, options.GcTime, options.Done)
+	go ipv6Defragger(ip6DefraggerChannel, ip6DefraggerReturn, options.GcTime, options.Done)
 
 	encoder := packetEncoder{
 		options.Port,
 		processingChannel,
 		ip4DefraggerChannel,
+		ip6DefraggerChannel,
 		ip4DefraggerReturn,
+		ip6DefraggerReturn,
 		tcpChannels,
 		tcpReturnChannel,
 		options.ResultChannel,

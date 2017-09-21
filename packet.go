@@ -3,6 +3,7 @@ package godnscapture
 import (
 	"time"
 
+	"github.com/fdns/godnscapture/ip6defrag"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/ip4defrag"
 	"github.com/google/gopacket/layers"
@@ -14,11 +15,18 @@ type packetEncoder struct {
 	port              uint16
 	input             <-chan gopacket.Packet
 	ip4Defrgger       chan<- layers.IPv4
+	ip6Defrgger       chan<- ipv6FragmentInfo
 	ip4DefrggerReturn <-chan layers.IPv4
+	ip6DefrggerReturn <-chan layers.IPv6
 	tcpAssembly       []chan tcpPacket
 	tcpReturnChannel  <-chan tcpData
 	resultChannel     chan<- DNSResult
 	done              chan bool
+}
+
+type ipv6FragmentInfo struct {
+	ip         layers.IPv6
+	ipFragment layers.IPv6Fragment
 }
 
 func ipv4Defragger(ipInput <-chan layers.IPv4, ipOut chan layers.IPv4, gcTime time.Duration, done chan bool) {
@@ -40,13 +48,34 @@ func ipv4Defragger(ipInput <-chan layers.IPv4, ipOut chan layers.IPv4, gcTime ti
 	}
 }
 
+func ipv6Defragger(ipInput <-chan ipv6FragmentInfo, ipOut chan layers.IPv6, gcTime time.Duration, done chan bool) {
+	ipv4Defragger := ip6defrag.NewIPv6Defragmenter()
+	ticker := time.NewTicker(1 * gcTime)
+	for {
+		select {
+		case packet := <-ipInput:
+			result, err := ipv4Defragger.DefragIPv6(&packet.ip, &packet.ipFragment)
+			if err == nil && result != nil {
+				ipOut <- *result
+			}
+		case <-ticker.C:
+			ipv4Defragger.DiscardOlderThan(time.Now().Add(gcTime * -1))
+		case <-done:
+			ticker.Stop()
+			return
+		}
+	}
+}
+
 func (encoder *packetEncoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *layers.UDP, tcp *layers.TCP, flow gopacket.Flow, IPVersion uint8, SrcIP, DstIP net.IP) {
 	for _, layerType := range *foundLayerTypes {
 		switch layerType {
 		case layers.LayerTypeUDP:
 			if uint16(udp.DstPort) == encoder.port || uint16(udp.SrcPort) == encoder.port {
 				msg := mkdns.Msg{}
-				if err := msg.Unpack(udp.Payload); err == nil {
+				err := msg.Unpack(udp.Payload)
+				// Process if no error or truncated, as it will have most of the information it have available
+				if err == nil || err == mkdns.ErrTruncated {
 					encoder.resultChannel <- DNSResult{time.Now(), msg, IPVersion, SrcIP, DstIP, "udp", uint16(len(udp.Payload))}
 				}
 			}
@@ -105,6 +134,17 @@ func (encoder *packetEncoder) run() {
 				break
 			}
 			encoder.processTransport(&foundLayerTypes, &udp, &tcp, ip4.NetworkFlow(), 4, ip4.SrcIP, ip4.DstIP)
+		case ip6 = <-encoder.ip6DefrggerReturn:
+			// Packet was defragged, parse the remaining data
+			if ip6.NextHeader == layers.IPProtocolUDP {
+				parserOnlyUDP.DecodeLayers(ip6.Payload, &foundLayerTypes)
+			} else if ip6.NextHeader == layers.IPProtocolTCP {
+				parserOnlyTCP.DecodeLayers(ip6.Payload, &foundLayerTypes)
+			} else {
+				// Protocol not supported
+				break
+			}
+			encoder.processTransport(&foundLayerTypes, &udp, &tcp, ip6.NetworkFlow(), 6, ip6.SrcIP, ip6.DstIP)
 		case packet := <-encoder.input:
 			{
 				_ = parser.DecodeLayers(packet.Data(), &foundLayerTypes)
@@ -122,7 +162,17 @@ func (encoder *packetEncoder) run() {
 						break
 					case layers.LayerTypeIPv6:
 						// Store the packet metadata
-						encoder.processTransport(&foundLayerTypes, &udp, &tcp, ip6.NetworkFlow(), 6, ip6.SrcIP, ip6.DstIP)
+						if ip6.NextHeader == layers.IPProtocolIPv6Fragment {
+							// TODO: Move the parsing to DecodingLayer when gopacket support it
+							if frag := packet.Layer(layers.LayerTypeIPv6Fragment).(*layers.IPv6Fragment); frag != nil {
+								encoder.ip6Defrgger <- ipv6FragmentInfo{
+									ip6,
+									*frag,
+								}
+							}
+						} else {
+							encoder.processTransport(&foundLayerTypes, &udp, &tcp, ip6.NetworkFlow(), 6, ip6.SrcIP, ip6.DstIP)
+						}
 					}
 				}
 				break

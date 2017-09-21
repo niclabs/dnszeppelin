@@ -10,7 +10,7 @@ before_install:
   - sudo apt-get install -y libpcap0.8 libpcap0.8-dev libnuma-dev
 
 script:
-  - sudo -E env "PATH=$PATH" go test -race -coverprofile=coverage.txt -covermode=atomic
+  - sudo -E env "PATH=$PATH" sh test.sh
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
