@@ -5,7 +5,7 @@ go:
   - 1.8
   - tip
 
-before_install:
+install:
   - sudo apt-get update -qq
   - sudo apt-get install -y libpcap0.8 libpcap0.8-dev libnuma-dev
 
