@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime"
 )
 
 type CaptureOptions struct {
@@ -123,6 +124,7 @@ func (capturer *DNSCapturer) Start() {
 	packetSource.DecodeOptions.Lazy = true
 	packetSource.NoCopy = true
 	log.Println("Waiting for packets")
+
 	for {
 		select {
 		case packet := <-packetSource.Packets():
@@ -134,6 +136,8 @@ func (capturer *DNSCapturer) Start() {
 			select {
 			case capturer.processing <- packet:
 			default:
+				// Packet ignored, yield waiting packet to get processed
+				runtime.Gosched()
 			}
 		case <-options.Done:
 			return
