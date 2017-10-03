@@ -10,11 +10,11 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"runtime"
 )
 
 type CaptureOptions struct {
 	DevName                      string
+	PcapFile                     string
 	Filter                       string
 	Port                         uint16
 	GcTime                       time.Duration
@@ -44,7 +44,7 @@ type DNSResult struct {
 	PacketLength uint16
 }
 
-func initialize(devName, filter string) *pcap.Handle {
+func initializeLivePcap(devName, filter string) *pcap.Handle {
 	// Open device
 	handle, err := pcap.OpenLive(devName, 65536, true, 10*time.Millisecond)
 	if err != nil {
@@ -62,6 +62,22 @@ func initialize(devName, filter string) *pcap.Handle {
 	return handle
 }
 
+func initializeOfflinePcap(fileName, filter string) *pcap.Handle {
+	handle, err := pcap.OpenOffline(fileName)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Set Filter
+	log.Printf("Using File: %s\n", fileName)
+	log.Printf("Filter: %s\n", filter)
+	err = handle.SetBPFFilter(filter)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return handle
+}
+
 func handleInterrupt(done chan bool) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
@@ -75,6 +91,9 @@ func handleInterrupt(done chan bool) {
 }
 
 func NewDNSCapturer(options CaptureOptions) DNSCapturer {
+	if options.DevName != "" && options.PcapFile != "" {
+		log.Fatal("You cant set DevName and PcapFile.")
+	}
 	var tcpChannels []chan tcpPacket
 
 	tcpReturnChannel := make(chan tcpData, options.TCPResultChannelSize)
@@ -112,8 +131,13 @@ func NewDNSCapturer(options CaptureOptions) DNSCapturer {
 }
 
 func (capturer *DNSCapturer) Start() {
+	var handle *pcap.Handle
 	options := capturer.options
-	handle := initialize(options.DevName, options.Filter)
+	if options.DevName != "" {
+		handle = initializeLivePcap(options.DevName, options.Filter)
+	} else {
+		handle = initializeOfflinePcap(options.PcapFile, options.Filter)
+	}
 	defer handle.Close()
 
 	// Setup SIGINT handling
@@ -128,15 +152,15 @@ func (capturer *DNSCapturer) Start() {
 		select {
 		case packet := <-packetSource.Packets():
 			if packet == nil {
-				log.Println("PacketSource returned nil.")
+				log.Println("PacketSource returned nil, exiting (Possible end of pcap file?). Sleeping for 10 seconds waiting for processing to finish")
+				time.Sleep(time.Second * 10)
 				close(options.Done)
 				return
 			}
 			select {
 			case capturer.processing <- packet:
-			default:
-				// Packet ignored, yield waiting packet to get processed
-				runtime.Gosched()
+			case <-options.Done:
+				return
 			}
 		case <-options.Done:
 			return

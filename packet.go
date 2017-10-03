@@ -22,7 +22,6 @@ type packetEncoder struct {
 	done              chan bool
 }
 
-
 func (encoder *packetEncoder) processTransport(foundLayerTypes *[]gopacket.LayerType, udp *layers.UDP, tcp *layers.TCP, flow gopacket.Flow, timestamp time.Time, IPVersion uint8, SrcIP, DstIP net.IP) {
 	for _, layerType := range *foundLayerTypes {
 		switch layerType {

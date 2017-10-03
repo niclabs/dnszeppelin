@@ -1,9 +1,9 @@
 package godnscapture
 
 import (
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/ip4defrag"
 	"github.com/fdns/godnscapture/ip6defrag"
+	"github.com/google/gopacket/ip4defrag"
+	"github.com/google/gopacket/layers"
 	"time"
 )
 
