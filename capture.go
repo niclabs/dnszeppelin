@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 	mkdns "github.com/miekg/dns"
 	"net"
@@ -80,10 +79,10 @@ func NewDNSCapturer(options CaptureOptions) DNSCapturer {
 
 	tcpReturnChannel := make(chan tcpData, options.TCPResultChannelSize)
 	processingChannel := make(chan gopacket.Packet, options.PacketChannelSize)
-	ip4DefraggerChannel := make(chan layers.IPv4, options.IPDefraggerChannelSize)
+	ip4DefraggerChannel := make(chan ipv4ToDefrag, options.IPDefraggerChannelSize)
 	ip6DefraggerChannel := make(chan ipv6FragmentInfo, options.IPDefraggerChannelSize)
-	ip4DefraggerReturn := make(chan layers.IPv4, options.IPDefraggerReturnChannelSize)
-	ip6DefraggerReturn := make(chan layers.IPv6, options.IPDefraggerReturnChannelSize)
+	ip4DefraggerReturn := make(chan ipv4Defragged, options.IPDefraggerReturnChannelSize)
+	ip6DefraggerReturn := make(chan ipv6Defragged, options.IPDefraggerReturnChannelSize)
 
 	for i := uint(0); i < options.TCPHandlerCount; i++ {
 		tcpChannels = append(tcpChannels, make(chan tcpPacket, options.TCPAssemblyChannelSize))
