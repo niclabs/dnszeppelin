@@ -9,7 +9,14 @@
 
 [[projects]]
   name = "github.com/google/gopacket"
-  packages = [".","ip4defrag","layers","pcap","tcpassembly","tcpassembly/tcpreader"]
+  packages = [
+    ".",
+    "ip4defrag",
+    "layers",
+    "pcap",
+    "tcpassembly",
+    "tcpassembly/tcpreader"
+  ]
   revision = "11c65f1ca9081dfea43b4f9643f5c155583b73ba"
   version = "v1.1.14"
 
@@ -34,6 +41,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b5e3c668fbc7b0c5441532dad0802f549bb11bf4e9c674d446a12896b714d4be"
+  inputs-digest = "c1eef5e5881980bcdd838998f5e3c4ab188a785200ec76c9f0d8533e62d84ade"
   solver-name = "gps-cdcl"
   solver-version = 1

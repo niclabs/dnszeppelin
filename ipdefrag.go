@@ -1,7 +1,7 @@
 package dnszeppelin
 
 import (
-	"github.com/fdns/dnszeppelin/ip6defrag"
+	"github.com/niclabs/dnszeppelin/ip6defrag"
 	"github.com/google/gopacket/ip4defrag"
 	"github.com/google/gopacket/layers"
 	"time"
