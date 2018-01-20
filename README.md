@@ -1,5 +1,5 @@
 # DnsZeppelin
-[![Build Status](https://travis-ci.org/niclabs/dnszeppelin.svg?branch=codecov)](https://travis-ci.org/niclabs/dnszeppelin)
+[![Build Status](https://travis-ci.org/niclabs/dnszeppelin.svg?branch=master)](https://travis-ci.org/niclabs/dnszeppelin)
 [![codecov](https://codecov.io/gh/niclabs/dnszeppelin/branch/master/graph/badge.svg)](https://codecov.io/gh/niclabs/dnszeppelin)
 
 Go library to capture DNS packets, based on https://github.com/Phillipmartin/gopassivedns. This library doesn't associate requests and responses of dns packets, and its used for raw logging.
