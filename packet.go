@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	mkdns "github.com/miekg/dns"
+	ndns "github.com/niclabs/dns"
 	"net"
 )
 
@@ -27,10 +27,10 @@ func (encoder *packetEncoder) processTransport(foundLayerTypes *[]gopacket.Layer
 		switch layerType {
 		case layers.LayerTypeUDP:
 			if uint16(udp.DstPort) == encoder.port || uint16(udp.SrcPort) == encoder.port {
-				msg := mkdns.Msg{}
+				msg := ndns.Msg{}
 				err := msg.Unpack(udp.Payload)
 				// Process if no error or truncated, as it will have most of the information it have available
-				if err == nil || err == mkdns.ErrTruncated {
+				if err == nil || err == ndns.ErrTruncated {
 					encoder.resultChannel <- DNSResult{timestamp, msg, IPVersion, SrcIP, DstIP, "udp", uint16(len(udp.Payload))}
 				}
 			}
@@ -74,7 +74,7 @@ func (encoder *packetEncoder) run() {
 	for {
 		select {
 		case data := <-encoder.tcpReturnChannel:
-			msg := mkdns.Msg{}
+			msg := ndns.Msg{}
 			if err := msg.Unpack(data.data); err == nil {
 				encoder.resultChannel <- DNSResult{data.timestamp, msg, data.IPVersion, data.SrcIP, data.DstIP, "tcp", uint16(len(data.data))}
 			}
