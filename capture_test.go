@@ -1,7 +1,7 @@
 package dnszeppelin
 
 import (
-	mkdns "github.com/miekg/dns"
+	ndns "github.com/niclabs/dns"
 	"github.com/stretchr/testify/assert"
 	"os"
 	"os/exec"
@@ -111,8 +111,8 @@ func BenchmarkUDPParsing(b *testing.B) {
 	defer close(capturer.options.Done)
 	defer close(rChannel)
 
-	data := new(mkdns.Msg)
-	data.SetQuestion("example.com.", mkdns.TypeA)
+	data := new(ndns.Msg)
+	data.SetQuestion("example.com.", ndns.TypeA)
 	pack, _ := data.Pack()
 
 	packet := generateUDPPacket(pack)
