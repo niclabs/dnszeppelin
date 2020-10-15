@@ -3,10 +3,11 @@ package dnszeppelin
 import (
 	"time"
 
+	"net"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
-	ndns "github.com/niclabs/dns"
-	"net"
+	ndns "github.com/miekg/dns"
 )
 
 type packetEncoder struct {
@@ -30,7 +31,7 @@ func (encoder *packetEncoder) processTransport(foundLayerTypes *[]gopacket.Layer
 				msg := ndns.Msg{}
 				err := msg.Unpack(udp.Payload)
 				// Process if no error or truncated, as it will have most of the information it have available
-				if err == nil || err == ndns.ErrTruncated {
+				if err == nil || msg.Truncated {
 					encoder.resultChannel <- DNSResult{timestamp, msg, IPVersion, SrcIP, DstIP, "udp", uint16(len(udp.Payload))}
 				}
 			}

@@ -4,12 +4,13 @@ import (
 	"log"
 	"time"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
-	ndns "github.com/niclabs/dns"
 	"net"
 	"os"
 	"os/signal"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/pcap"
+	ndns "github.com/miekg/dns"
 )
 
 type CaptureOptions struct {

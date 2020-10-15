@@ -1,13 +1,14 @@
 package dnszeppelin
 
 import (
-	ndns "github.com/niclabs/dns"
-	"github.com/stretchr/testify/assert"
 	"os"
 	"os/exec"
 	"strconv"
 	"testing"
 	"time"
+
+	ndns "github.com/miekg/dns"
+	"github.com/stretchr/testify/assert"
 )
 
 // helpers

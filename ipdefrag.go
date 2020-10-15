@@ -1,10 +1,11 @@
 package dnszeppelin
 
 import (
-	"github.com/niclabs/dnszeppelin/ip6defrag"
+	"time"
+
 	"github.com/google/gopacket/ip4defrag"
 	"github.com/google/gopacket/layers"
-	"time"
+	"github.com/niclabs/dnszeppelin/ip6defrag"
 )
 
 type ipv4ToDefrag struct {

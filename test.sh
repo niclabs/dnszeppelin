@@ -2,6 +2,7 @@
 
 set -e
 echo "" > coverage.txt
+go mod tidy
 
 for d in $(go list ./... | grep -v vendor); do
     go test -race -coverprofile=profile.out -covermode=atomic $d
