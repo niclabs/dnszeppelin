@@ -27,7 +27,7 @@
 
 [[constraint]]
   branch = "master"
-  name = "github.com/miekg/dns"
+  name = "github.com/niclabs/dns"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
