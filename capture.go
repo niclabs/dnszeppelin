@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
-	mkdns "github.com/miekg/dns"
+	ndns "github.com/niclabs/dns"
 	"net"
 	"os"
 	"os/signal"
@@ -36,7 +36,7 @@ type DNSCapturer struct {
 
 type DNSResult struct {
 	Timestamp    time.Time
-	DNS          mkdns.Msg
+	DNS          ndns.Msg
 	IPVersion    uint8
 	SrcIP        net.IP
 	DstIP        net.IP
